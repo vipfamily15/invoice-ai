@@ -1,0 +1,129 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  name      String
+  avatar    String?
+  isAdmin   Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  invoices      Invoice[]
+  subscription  Subscription?
+  auditLogs     AuditLog[]
+
+  @@index([email])
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  vendorName      String
+  vendorEmail     String?
+  vendorAddress   String?
+  amount          Float
+  currency        String   @default("USD")
+  invoiceDate     DateTime
+  dueDate         DateTime?
+  invoiceNumber   String
+  tax             Float    @default(0)
+  description     String?
+
+  fileUrl         String
+  fileType        String   @default("pdf")
+  
+  lineItems       LineItem[]
+  status          String   @default("pending")
+  processedAt     DateTime?
+  extractedData   String?  @db.Text
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([invoiceDate])
+  @@index([status])
+}
+
+model LineItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  description String
+  quantity    Float
+  unitPrice   Float
+  amount      Float
+  tax         Float    @default(0)
+
+  createdAt   DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+model Subscription {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  planId          String
+  plan            SubscriptionPlan @relation(fields: [planId], references: [id])
+  stripeId        String?  @unique
+  status          String   @default("active") // active, canceled, expired
+  invoicesUsed    Int      @default(0)
+  invoicesLimit   Int
+
+  startDate       DateTime @default(now())
+  endDate         DateTime?
+  renewalDate     DateTime?
+  canceledAt      DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model SubscriptionPlan {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  description     String?
+  price           Float
+  currency        String   @default("USD")
+  billingPeriod   String   @default("month") // month, year
+  invoicesLimit   Int
+  features        String[] // JSON array of features
+  stripePriceId   String?  @unique
+
+  subscriptions   Subscription[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  details   String   @db.Text
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+}
